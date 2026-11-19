@@ -29,7 +29,7 @@ const BENEFITS = [
 
 export function WhyUs() {
   return (
-    <section className="py-24 px-6 bg-card">
+    <section className="relative py-24 px-6 bg-card">
       <div className="mx-auto max-w-7xl">
         <div className="grid lg:grid-cols-2 gap-16 items-center">
           {/* Content */}

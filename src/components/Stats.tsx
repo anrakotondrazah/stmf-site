@@ -64,7 +64,7 @@ const STATS = [
 
 export function Stats() {
   return (
-    <section className="py-16 px-6 bg-card border-y border-line">
+    <section className="relative py-16 px-6 bg-card border-y border-line">
       <div className="mx-auto max-w-7xl">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
           {STATS.map((stat) => (

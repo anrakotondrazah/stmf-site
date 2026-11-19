@@ -43,7 +43,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="fr" className={`${inter.variable} ${jakarta.variable}`}>
-      <body className="min-h-screen bg-ink text-white antialiased">
+      <body className="min-h-screen text-white antialiased">
         <SmoothScroll>
           <Header />
           {children}

@@ -838,7 +838,8 @@ export default function WebGLMorph({
   return (
     <div
       ref={containerRef}
-      className={`absolute inset-0 ${className}`}
+      className={`fixed inset-0 ${className}`}
+      style={{ zIndex: -1 }}
       aria-hidden="true"
     />
   );

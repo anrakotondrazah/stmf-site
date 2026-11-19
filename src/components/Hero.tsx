@@ -1,25 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import dynamic from "next/dynamic";
 import { ArrowUpRight, ChevronDown } from "lucide-react";
-
-const WebGLMorph = dynamic(() => import("./webgl/WebGLMorph"), {
-  ssr: false,
-  loading: () => (
-    <div className="absolute inset-0 flex items-center justify-center">
-      <div className="w-32 h-32 rounded-full bg-primary/20 animate-pulse" />
-    </div>
-  ),
-});
 
 const CHIPS = ["EXPERTISE HUMAINE", "IA & AUTOMATISATION", "TARIFS -60%", "DEPUIS 2016"];
 
 export function Hero() {
   return (
-    <section className="relative z-10 min-h-screen flex flex-col justify-center overflow-hidden px-6 pt-32 pb-20">
-      {/* WebGL 7-Phase Morph Animation */}
-      <WebGLMorph mode="full" enableScroll className="absolute inset-0 z-0" />
+    <section className="relative min-h-screen flex flex-col justify-center overflow-hidden px-6 pt-32 pb-20 bg-transparent">
 
       {/* Content - Use CSS animations instead of Reveal for above-the-fold content */}
       <div className="relative z-10 mx-auto w-full max-w-7xl">

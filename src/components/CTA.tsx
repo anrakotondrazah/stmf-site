@@ -6,7 +6,7 @@ import { Reveal } from "./Reveal";
 
 export function CTA() {
   return (
-    <section className="py-24 px-6 relative overflow-hidden">
+    <section className="relative py-24 px-6 overflow-hidden bg-ink">
       {/* Background gradient */}
       <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-ink to-ink" />
       <div className="absolute inset-0 aurora opacity-50" />

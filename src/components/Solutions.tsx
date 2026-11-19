@@ -57,7 +57,7 @@ const SOLUTIONS = [
 
 export function Solutions() {
   return (
-    <section id="solutions" className="py-24 px-6">
+    <section id="solutions" className="relative py-24 px-6 bg-ink">
       <div className="mx-auto max-w-7xl">
         {/* Header */}
         <Reveal>
