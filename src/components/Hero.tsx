@@ -17,7 +17,7 @@ const CHIPS = ["EXPERTISE HUMAINE", "IA & AUTOMATISATION", "TARIFS -60%", "DEPUI
 
 export function Hero() {
   return (
-    <section className="relative min-h-screen flex flex-col justify-center overflow-hidden px-6 pt-32 pb-20">
+    <section className="relative z-10 min-h-screen flex flex-col justify-center overflow-hidden px-6 pt-32 pb-20">
       {/* WebGL 7-Phase Morph Animation */}
       <WebGLMorph mode="full" enableScroll className="absolute inset-0 z-0" />
 

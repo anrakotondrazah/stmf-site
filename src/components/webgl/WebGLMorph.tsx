@@ -829,7 +829,8 @@ export default function WebGLMorph({
   if (prefersReducedMotion()) {
     return (
       <div
-        className={`fixed inset-0 bg-gradient-to-b from-[#0f172a] to-[#1a2744] ${className}`}
+        className={`fixed inset-0 -z-10 bg-gradient-to-b from-[#0f172a] to-[#1a2744] ${className}`}
+        style={{ zIndex: -1 }}
         aria-hidden="true"
       />
     );
@@ -838,7 +839,8 @@ export default function WebGLMorph({
   return (
     <div
       ref={containerRef}
-      className={`fixed inset-0 z-0 ${className}`}
+      className={`fixed inset-0 -z-10 ${className}`}
+      style={{ zIndex: -1 }}
       aria-hidden="true"
     />
   );
