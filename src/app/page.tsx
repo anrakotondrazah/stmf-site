@@ -7,7 +7,7 @@ import { CTA } from "@/components/CTA";
 
 export default function HomePage() {
   return (
-    <main>
+    <main className="relative z-10">
       <Hero />
       <Marquee />
       <Stats />

@@ -152,13 +152,10 @@ body {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5);
 }
 
-/* Reveal Animation (Scroll-triggered) */
+/* Reveal Animation - DISABLED due to scroll bugs */
 .reveal {
-  opacity: 0;
-  transform: translateY(32px);
-  transition: opacity 0.8s cubic-bezier(0.22, 1, 0.36, 1),
-              transform 0.8s cubic-bezier(0.22, 1, 0.36, 1);
-  transition-delay: var(--d, 0ms);
+  opacity: 1 !important;
+  transform: none !important;
 }
 
 .reveal.in {
@@ -166,11 +163,10 @@ body {
   transform: none;
 }
 
-/* Stagger children */
+/* Stagger children - DISABLED due to scroll bugs */
 .stagger > * {
-  opacity: 0;
-  transform: translateY(24px);
-  transition: opacity 0.6s ease, transform 0.6s ease;
+  opacity: 1 !important;
+  transform: none !important;
 }
 
 .stagger.in > *:nth-child(1) { transition-delay: 0ms; }
