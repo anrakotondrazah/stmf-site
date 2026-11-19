@@ -6,8 +6,13 @@ import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { MeshSurfaceSampler } from "three/examples/jsm/math/MeshSurfaceSampler.js";
 import { vertexShader, fragmentShader, bgVertexShader, bgFragmentShader } from "./shaders";
 import { prefersReducedMotion } from "@/lib/motion";
+
+const XBOT_URL = "https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/models/gltf/Xbot.glb";
+const LIN = new Float32Array(256).fill(0).map((_, i) => Math.pow(i / 255, 2.2));
 
 interface WebGLMorphProps {
   mode?: "full" | "wave-only" | "static";
@@ -319,6 +324,115 @@ function sortShape<T extends Record<string, Float32Array>>(s: T, N: number): T {
   return s;
 }
 
+async function loadBaked(url: string, N: number) {
+  const buf = await (await fetch(url)).arrayBuffer();
+  const view = new DataView(buf);
+  const M = view.getUint32(0, true);
+  const n = Math.min(N, M);
+  const pos = new Float32Array(buf, 8, M * 3);
+  const nr = new Int8Array(buf, 8 + M * 12, M * 3);
+  const cl = new Uint8Array(buf, 8 + M * 15, M * 3);
+  const tg = new Uint8Array(buf, 8 + M * 18, M);
+  const out = {
+    pos: new Float32Array(N * 3),
+    nrm: new Float32Array(N * 3),
+    col: new Float32Array(N * 3),
+    part: new Float32Array(N),
+  };
+  for (let i = 0; i < N; i++) {
+    const j = i % n;
+    for (let k = 0; k < 3; k++) {
+      out.pos[i * 3 + k] = pos[j * 3 + k];
+      out.nrm[i * 3 + k] = nr[j * 3 + k] / 127;
+      out.col[i * 3 + k] = LIN[cl[j * 3 + k]];
+    }
+    out.part[i] = tg[j];
+  }
+  return out;
+}
+
+function meshArea(mesh: THREE.Mesh): number {
+  const g = mesh.geometry;
+  const p = g.attributes.position;
+  const idx = g.index;
+  const sc = Math.cbrt(Math.abs(mesh.matrixWorld.determinant()));
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+  const tri = idx ? idx.count / 3 : p.count / 3;
+  let area = 0;
+  for (let i = 0; i < tri; i++) {
+    const i0 = idx ? idx.getX(i * 3) : i * 3;
+    const i1 = idx ? idx.getX(i * 3 + 1) : i * 3 + 1;
+    const i2 = idx ? idx.getX(i * 3 + 2) : i * 3 + 2;
+    a.fromBufferAttribute(p, i0);
+    b.fromBufferAttribute(p, i1);
+    c.fromBufferAttribute(p, i2);
+    area += b.sub(a).cross(c.sub(a)).length() * 0.5;
+  }
+  return area * sc * sc;
+}
+
+async function shapeFromGLB(url: string, N: number) {
+  const gltfLoader = new GLTFLoader();
+  const gltf = await gltfLoader.loadAsync(url);
+  gltf.scene.updateMatrixWorld(true);
+
+  const items: Array<{
+    mesh: THREE.Mesh;
+    sampler: MeshSurfaceSampler;
+    color: THREE.Color;
+    tag: number;
+    cum: number;
+  }> = [];
+  let total = 0;
+
+  gltf.scene.traverse((o) => {
+    if (!(o as THREE.Mesh).isMesh) return;
+    const mesh = o as THREE.Mesh;
+    if (!mesh.visible || !mesh.geometry.attributes.position) return;
+    const area = meshArea(mesh);
+    if (!(area > 0)) return;
+    const mat = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+    const matColor = (mat as THREE.MeshStandardMaterial)?.color;
+    items.push({
+      mesh,
+      sampler: new MeshSurfaceSampler(mesh).build(),
+      color: matColor ? matColor : new THREE.Color(0.7, 0.6, 0.5),
+      tag: /joint|eye|lens|light/i.test(mesh.name + " " + ((mat as THREE.Material)?.name || "")) ? 1 : 0,
+      cum: (total += area),
+    });
+  });
+
+  if (!items.length) throw new Error("Model has no mesh");
+
+  const out = {
+    pos: new Float32Array(N * 3),
+    nrm: new Float32Array(N * 3),
+    col: new Float32Array(N * 3),
+    part: new Float32Array(N),
+  };
+  const P = new THREE.Vector3(), Nm = new THREE.Vector3();
+
+  for (let i = 0; i < N; i++) {
+    const r = Math.random() * total;
+    let it = items[items.length - 1];
+    for (const c of items) if (c.cum >= r) { it = c; break; }
+    it.sampler.sample(P, Nm);
+    P.applyMatrix4(it.mesh.matrixWorld);
+    Nm.transformDirection(it.mesh.matrixWorld);
+    out.pos[i * 3] = P.x;
+    out.pos[i * 3 + 1] = P.y;
+    out.pos[i * 3 + 2] = P.z;
+    out.nrm[i * 3] = Nm.x;
+    out.nrm[i * 3 + 1] = Nm.y;
+    out.nrm[i * 3 + 2] = Nm.z;
+    out.col[i * 3] = it.color.r;
+    out.col[i * 3 + 1] = it.color.g;
+    out.col[i * 3 + 2] = it.color.b;
+    out.part[i] = it.tag;
+  }
+  return finalizeShape(out);
+}
+
 export default function WebGLMorph({
   mode = "full",
   enableScroll = true,
@@ -410,11 +524,12 @@ export default function WebGLMorph({
     composer.addPass(new OutputPass());
 
     const sphere = sortShape(generateSphere(COUNT), COUNT);
-    const human = sortShape(
+    // Fallback procedural shapes (will be replaced when models load)
+    const humanFallback = sortShape(
       finalizeShape(shapeFromParts(humanParts() as PartType[], COUNT, [0.62, 0.36, 0.28])),
       COUNT
     );
-    const robot = sortShape(
+    const robotFallback = sortShape(
       finalizeShape(shapeFromParts(robotParts() as PartType[], COUNT, [0.6, 0.7, 0.8])),
       COUNT
     );
@@ -437,22 +552,49 @@ export default function WebGLMorph({
     const geometry = new THREE.BufferGeometry();
     const A = (name: string, arr: Float32Array, size: number) =>
       geometry.setAttribute(name, new THREE.BufferAttribute(arr, size));
+    const setAttr = (name: string, arr: Float32Array) => {
+      const a = geometry.attributes[name] as THREE.BufferAttribute;
+      a.array.set(arr);
+      a.needsUpdate = true;
+    };
 
     A("position", sphere.pos, 3);
     A("normal", sphere.nrm, 3);
     A("aGroup", sphere.grp, 1);
-    A("aHuman", human.pos, 3);
-    A("nHuman", human.nrm, 3);
-    A("aCol", human.col, 3);
-    A("aHPart", human.part, 1);
-    A("aRobot", robot.pos, 3);
-    A("nRobot", robot.nrm, 3);
-    A("aRPart", robot.part, 1);
+    A("aHuman", humanFallback.pos, 3);
+    A("nHuman", humanFallback.nrm, 3);
+    A("aCol", humanFallback.col, 3);
+    A("aHPart", humanFallback.part, 1);
+    A("aRobot", robotFallback.pos, 3);
+    A("nRobot", robotFallback.nrm, 3);
+    A("aRPart", robotFallback.part, 1);
     A("aWave", wave.pos, 3);
     A("aWaveGrid", wave.grid, 2);
     A("aVagabond", vagabondPos, 3);
     A("aVagabondVel", vagabondVel, 3);
     A("aRand", rand, 4);
+
+    // Load real models asynchronously (avatar.bin for human, Xbot.glb for robot)
+    loadBaked("/avatar.bin", COUNT)
+      .then((s) => {
+        sortShape(s, COUNT);
+        setAttr("aHuman", s.pos);
+        setAttr("nHuman", s.nrm);
+        setAttr("aCol", s.col);
+        setAttr("aHPart", s.part);
+        console.log("Avatar loaded:", COUNT, "particles");
+      })
+      .catch((err) => console.warn("Avatar fallback:", err));
+
+    shapeFromGLB(XBOT_URL, COUNT)
+      .then((s) => {
+        sortShape(s, COUNT);
+        setAttr("aRobot", s.pos);
+        setAttr("nRobot", s.nrm);
+        setAttr("aRPart", s.part);
+        console.log("Robot loaded:", COUNT, "particles");
+      })
+      .catch((err) => console.warn("Robot fallback:", err));
 
     const uniforms = {
       uTime: { value: 0 },
