@@ -225,6 +225,21 @@ body {
   }
 }
 
+/* Hero Fade Animation - CSS-only, no JS dependency */
+.hero-fade {
+  opacity: 0;
+  transform: translateY(32px);
+  animation: heroFadeIn 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation-delay: var(--d, 0ms);
+}
+
+@keyframes heroFadeIn {
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 /* Breathe Animation (Background) */
 .anim-breathe {
   animation: breathe 12s ease-in-out infinite;
