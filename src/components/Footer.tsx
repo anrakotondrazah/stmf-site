@@ -10,14 +10,13 @@ const FOOTER_LINKS = {
   ],
   company: [
     { label: "A propos", href: "/about" },
-    { label: "Carrieres", href: "/careers" },
-    { label: "Blog", href: "/blog" },
+    { label: "FAQ", href: "/faq" },
+    { label: "Securite", href: "/securite" },
     { label: "Contact", href: "/contact" },
   ],
   legal: [
-    { label: "Mentions legales", href: "/legal" },
-    { label: "Confidentialite", href: "/privacy" },
-    { label: "Cookies", href: "/cookies" },
+    { label: "Mentions legales", href: "/mentions-legales" },
+    { label: "Confidentialite", href: "/confidentialite" },
   ],
 };
 
