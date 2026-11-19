@@ -1,0 +1,418 @@
+@import "tailwindcss";
+
+/* Variant for pinned sections on desktop with motion */
+@custom-variant pin {
+  @media (min-width: 768px) and (prefers-reduced-motion: no-preference) {
+    @slot;
+  }
+}
+
+@theme {
+  /* STMF Brand Colors - Based on Logo */
+  --color-ink: #0f172a;           /* Navy dark background */
+  --color-paper: #f8fafc;         /* Light background */
+  --color-primary: #1a2744;       /* Bleu marine fonce (texte logo) */
+  --color-primary-light: #3b82f6; /* Bleu clair (circuits logo) */
+  --color-accent: #22d3ee;        /* Cyan (highlights WebGL) */
+  --color-secondary: #60a5fa;     /* Bleu medium */
+  --color-gold: #c9a227;          /* Gold accent */
+  --color-mute: #94a3b8;          /* Gris (texte secondaire) */
+  --color-line: #1e3a5f;          /* Lignes separateurs */
+  --color-card: #0f1f3c;          /* Fond cartes */
+
+  /* Fonts */
+  --font-display: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* Base */
+html {
+  scroll-behavior: smooth;
+  background: var(--color-ink);
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.6;
+  color: #f1f5f9;
+  background: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+::selection {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+/* Typography */
+.headline {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: #f1f5f9;
+}
+
+.kicker {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  color: var(--color-primary-light);
+  font-size: 12px;
+}
+
+/* Glass Card - Style iOS */
+.glass-card {
+  background: rgba(15, 31, 60, 0.8);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(59, 130, 246, 0.1);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+              border-color 0.3s ease;
+}
+
+.glass-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 20px 40px rgba(59, 130, 246, 0.2);
+  border-color: var(--color-primary-light);
+}
+
+/* Glass Variants */
+.glass-subtle {
+  background: rgba(26, 39, 68, 0.6);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(59, 130, 246, 0.08);
+}
+
+.glass-frosted {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid rgba(59, 130, 246, 0.12);
+}
+
+.glass-glow {
+  box-shadow: 0 0 60px rgba(59, 130, 246, 0.15);
+}
+
+/* Gradient Border Card - STMF Blue */
+.gradient-border {
+  position: relative;
+  background: var(--color-card);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, transparent 30%, #3b82f6 50%, var(--color-accent) 70%, transparent 100%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.gradient-border:hover::before {
+  opacity: 1;
+}
+
+/* 3D Card Effect */
+.card-3d {
+  transform-style: preserve-3d;
+  perspective: 1000px;
+  transition: transform 0.3s ease;
+}
+
+.card-3d:hover {
+  transform: rotateX(2deg) rotateY(-2deg) translateZ(10px);
+}
+
+/* Squash & Stretch on Click */
+.squash-stretch {
+  transition: transform 0.15s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+.squash-stretch:active {
+  transform: scale(0.95);
+}
+
+/* Focus Ring iOS Style */
+.focus-ring:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5);
+}
+
+/* Reveal Animation (Scroll-triggered) */
+.reveal {
+  opacity: 0;
+  transform: translateY(32px);
+  transition: opacity 0.8s cubic-bezier(0.22, 1, 0.36, 1),
+              transform 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: var(--d, 0ms);
+}
+
+.reveal.in {
+  opacity: 1;
+  transform: none;
+}
+
+/* Stagger children */
+.stagger > * {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+
+.stagger.in > *:nth-child(1) { transition-delay: 0ms; }
+.stagger.in > *:nth-child(2) { transition-delay: 80ms; }
+.stagger.in > *:nth-child(3) { transition-delay: 160ms; }
+.stagger.in > *:nth-child(4) { transition-delay: 240ms; }
+.stagger.in > *:nth-child(5) { transition-delay: 320ms; }
+.stagger.in > *:nth-child(6) { transition-delay: 400ms; }
+
+.stagger.in > * {
+  opacity: 1;
+  transform: none;
+}
+
+/* Marquee */
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: marquee 40s linear infinite;
+}
+
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+/* Magnetic Text Letter Animation */
+.anim-letter {
+  opacity: 0;
+  transform: translateY(40px);
+  animation: letterIn 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes letterIn {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Fade Up Animation */
+.anim-fade-up {
+  opacity: 0;
+  transform: translateY(24px);
+  animation: fadeUp 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes fadeUp {
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Breathe Animation (Background) */
+.anim-breathe {
+  animation: breathe 12s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+}
+
+/* Aurora Background - STMF Blue */
+.aurora {
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background:
+    radial-gradient(ellipse at 30% 20%, rgba(59, 130, 246, 0.2) 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 30%, rgba(34, 211, 238, 0.15) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 80%, rgba(59, 130, 246, 0.1) 0%, transparent 40%);
+  animation: auroraMove 20s ease-in-out infinite;
+}
+
+@keyframes auroraMove {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  33% { transform: translate(3%, -3%) rotate(1deg); }
+  66% { transform: translate(-3%, 3%) rotate(-1deg); }
+}
+
+/* Starfield */
+.stars {
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(2px 2px at 20px 30px, rgba(255,255,255,0.9), transparent),
+    radial-gradient(2px 2px at 40px 70px, rgba(255,255,255,0.7), transparent),
+    radial-gradient(1px 1px at 90px 40px, rgba(255,255,255,1), transparent),
+    radial-gradient(2px 2px at 160px 120px, rgba(255,255,255,0.6), transparent),
+    radial-gradient(1px 1px at 230px 80px, rgba(255,255,255,0.8), transparent),
+    radial-gradient(2px 2px at 350px 200px, rgba(255,255,255,0.7), transparent),
+    radial-gradient(1px 1px at 450px 60px, rgba(255,255,255,0.9), transparent),
+    radial-gradient(2px 2px at 550px 180px, rgba(255,255,255,0.6), transparent),
+    radial-gradient(1px 1px at 650px 100px, rgba(255,255,255,1), transparent),
+    radial-gradient(2px 2px at 750px 150px, rgba(255,255,255,0.7), transparent);
+  background-size: 800px 400px;
+  animation: twinkle 6s ease-in-out infinite;
+}
+
+@keyframes twinkle {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+
+/* Grain Texture */
+.grain {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.03;
+  mix-blend-mode: overlay;
+}
+
+/* Pulse Dot */
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: var(--color-primary-light);
+  animation: pulseDot 2s ease-in-out infinite;
+}
+
+@keyframes pulseDot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.3); }
+}
+
+/* Button Base - iOS Style */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  border-radius: 12px;
+  transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+  cursor: pointer;
+}
+
+.btn:hover {
+  transform: translateY(-2px);
+}
+
+.btn:active {
+  transform: scale(0.98);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  color: white;
+  padding: 0.875rem 2rem;
+  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.25);
+}
+
+.btn-primary:hover {
+  box-shadow: 0 8px 25px rgba(59, 130, 246, 0.4);
+}
+
+.btn-secondary {
+  background: linear-gradient(135deg, var(--color-accent), #0ea5e9);
+  color: white;
+  padding: 0.875rem 2rem;
+}
+
+.btn-outline {
+  background: transparent;
+  border: 2px solid var(--color-line);
+  color: #f1f5f9;
+  padding: calc(0.875rem - 2px) calc(2rem - 2px);
+}
+
+.btn-outline:hover {
+  border-color: var(--color-primary-light);
+  color: var(--color-primary-light);
+  background: rgba(59, 130, 246, 0.1);
+}
+
+/* Skeleton Loader - iOS Shimmer */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(59, 130, 246, 0.1) 25%,
+    rgba(59, 130, 246, 0.2) 50%,
+    rgba(59, 130, 246, 0.1) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 8px;
+}
+
+.skeleton-text {
+  height: 1em;
+  margin: 0.5em 0;
+}
+
+.skeleton-title {
+  height: 2em;
+  width: 60%;
+}
+
+.skeleton-card {
+  height: 200px;
+  border-radius: 16px;
+}
+
+.skeleton-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Smooth scrollbar */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track, .pulse-dot, .aurora, .stars, .anim-breathe {
+    animation: none;
+  }
+  .reveal, .stagger > * {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .anim-letter, .anim-fade-up {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}

@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>STMF - Avatar Custom + Casque</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { background: #04070b; color: #fff; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; overflow-x: hidden; }
+
+    #canvas-container { position: fixed; inset: 0; z-index: 1; }
+    .vignette {
+      position: fixed; inset: 0; z-index: 2; pointer-events: none;
+      background:
+        radial-gradient(ellipse at 70% 50%, transparent 35%, rgba(4,7,11,.75) 100%),
+        linear-gradient(90deg, rgba(4,7,11,.65) 0%, transparent 45%);
+    }
+
+    .content { position: relative; z-index: 10; pointer-events: none; }
+    .section { height: 100vh; display: flex; align-items: center; justify-content: flex-start; padding: 2rem 7vw; }
+    .section .inner { max-width: 560px; will-change: opacity, transform; }
+    .eyebrow { font-size: .75rem; letter-spacing: .35em; text-transform: uppercase; color: #22d3ee; margin-bottom: 1.2rem; display: flex; align-items: center; gap: .8rem; }
+    .eyebrow::before { content: ''; width: 36px; height: 1px; background: #22d3ee; }
+    .section h1 { font-size: clamp(2.4rem, 7vw, 5.2rem); font-weight: 800; line-height: .98; letter-spacing: -0.03em; text-transform: uppercase;
+      background: linear-gradient(180deg, #fff 30%, #7dd3fc 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .section p { font-size: 1.1rem; line-height: 1.6; opacity: .65; margin-top: 1.2rem; }
+
+    .phase-indicator { position: fixed; right: 2rem; top: 50%; transform: translateY(-50%); z-index: 100; display: flex; flex-direction: column; gap: .9rem; align-items: flex-end; }
+    .phase { font-size: .7rem; letter-spacing: .25em; text-transform: uppercase; opacity: .3; transition: all .4s; display: flex; align-items: center; gap: .7rem; }
+    .phase::after { content: ''; width: 18px; height: 1px; background: currentColor; transition: width .4s; }
+    .phase.active { opacity: 1; color: #22d3ee; }
+    .phase.active::after { width: 42px; }
+
+    #status { position: fixed; left: 2rem; bottom: 1.5rem; z-index: 100; font-size: .7rem; letter-spacing: .15em; text-transform: uppercase; opacity: .45; font-variant-numeric: tabular-nums; }
+    .scroll-hint { position: fixed; bottom: 1.5rem; left: 50%; z-index: 100; font-size: .7rem; letter-spacing: .3em; text-transform: uppercase; opacity: .4; animation: bounce 2s infinite; }
+    @keyframes bounce { 0%,100% { transform: translateX(-50%) translateY(0); } 50% { transform: translateX(-50%) translateY(-8px); } }
+
+    @media (max-width: 800px) {
+      .section { align-items: flex-end; padding-bottom: 14vh; }
+      .phase-indicator { display: none; }
+      .vignette { background: linear-gradient(0deg, rgba(4,7,11,.85) 0%, transparent 55%); }
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container"></div>
+  <div class="vignette"></div>
+
+  <div class="content">
+    <section class="section"><div class="inner">
+      <div class="eyebrow">Point de depart</div><h1>Le noyau</h1>
+      <p>Une sphere vivante de plus de 100 000 particules : l'energie brute avant toute forme.</p></div></section>
+    <section class="section"><div class="inner">
+      <div class="eyebrow">Transition</div><h1>Fission</h1>
+      <p>La matiere se disperse et se reorganise.</p></div></section>
+    <section class="section"><div class="inner">
+      <div class="eyebrow">Expertise STMF</div><h1>L'expert</h1>
+      <p>Votre conseiller dedie, reconstruit particule par particule.</p></div></section>
+    <section class="section"><div class="inner">
+      <div class="eyebrow">Mutation</div><h1>Fusion</h1>
+      <p>Une nouvelle dispersion, une nouvelle intelligence.</p></div></section>
+    <section class="section"><div class="inner">
+      <div class="eyebrow">Intelligence artificielle</div><h1>Robot / IA</h1>
+      <p>L'humanoide de demain : la rencontre de l'expertise humaine et de l'intelligence artificielle.</p></div></section>
+  </div>
+
+  <div class="phase-indicator">
+    <span class="phase active">Noyau</span>
+    <span class="phase">Fission</span>
+    <span class="phase">Expert</span>
+    <span class="phase">Fusion</span>
+    <span class="phase">Robot IA</span>
+  </div>
+  <div id="status">Chargement avatar...</div>
+  <div class="scroll-hint">Scroll</div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+
+  <script type="module">
+  import * as THREE from 'three';
+  import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+  import { MeshSurfaceSampler } from 'three/addons/math/MeshSurfaceSampler.js';
+  import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+  import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+  import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+  import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+  /* ================================================================
+     CONFIG - AVATAR CUSTOM + CASQUE
+  ================================================================ */
+  const IS_MOBILE = matchMedia('(max-width: 800px)').matches || /Mobi|Android/i.test(navigator.userAgent);
+  const COUNT      = IS_MOBILE ? 50000 : 110000;
+  const BODY_H     = 2.7;
+  const SECTIONS   = 5;
+  const ARM_DROP_DEG   = 0;      // Pas de drop arms pour un buste
+  const TEXTURE_FLIP_V = false;
+
+  // MODELES : avatar custom local + robot Xbot
+  const BASE = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/models/gltf/';
+  const MODELS = {
+    human: { urls: ['./avatar.glb'], texture: false, headFrac: 0.35, isBust: true },
+    robot: { urls: [BASE + 'Xbot.glb'], texture: false, headFrac: 0.18 }
+  };
+
+  // Parametres du casque (ajustes pour buste)
+  const HEADSET = {
+    bandRadius: 0.28,      // Rayon de l'arceau (plus grand)
+    bandY: 0.22,           // Hauteur au-dessus du centre tete
+    earRadius: 0.10,       // Rayon des ecouteurs (plus grand)
+    earOffsetX: 0.26,      // Distance laterale (plus large)
+    earOffsetY: 0.0,       // Hauteur des ecouteurs
+    micLength: 0.22,       // Longueur du micro
+    particleRatio: 0.12    // 12% des particules pour le casque (plus visible)
+  };
+
+  const TAU = Math.PI * 2;
+  const clamp  = (x, a, b) => Math.min(b, Math.max(a, x));
+  const smooth = (a, b, x) => { x = clamp((x - a) / (b - a), 0, 1); return x * x * (3 - 2 * x); };
+  const lin    = (a, b, x) => clamp((x - a) / (b - a), 0, 1);
+
+  /* ================================================================
+     RENDERER / SCENE / POST-PROCESSING
+  ================================================================ */
+  const container = document.getElementById('canvas-container');
+  const PR = Math.min(window.devicePixelRatio, IS_MOBILE ? 1.5 : 2);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
+  renderer.setPixelRatio(PR);
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.0;
+  container.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x04070b);
+
+  const camera = new THREE.PerspectiveCamera(38, innerWidth / innerHeight, 0.1, 100);
+  camera.position.z = 6.5;
+
+  const composer = new EffectComposer(renderer);
+  composer.setPixelRatio(PR);
+  composer.setSize(innerWidth, innerHeight);
+  composer.addPass(new RenderPass(scene, camera));
+  const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.85, 0.7, 0.2);
+  composer.addPass(bloom);
+  composer.addPass(new OutputPass());
+
+  /* ================================================================
+     SPHERE : globe a grille + noyau + anneaux gyroscopiques + halo
+  ================================================================ */
+  function generateSphere(N) {
+    const pos = new Float32Array(N * 3), nrm = new Float32Array(N * 3), grp = new Float32Array(N);
+    const tilt  = [[0.35, 0, 0.25], [-0.6, 0, -0.35], [1.1, 0, 0.5]];
+    const ringR = [1.5, 1.72, 1.95];
+    const e = new THREE.Euler(), v = new THREE.Vector3(), nv = new THREE.Vector3();
+
+    for (let i = 0; i < N; i++) {
+      const r = Math.random();
+      let g;
+      if (r < 0.46) {
+        g = 0;
+        let phi = Math.random() * TAU, theta = Math.acos(2 * Math.random() - 1);
+        const mode = Math.random();
+        if (mode < 0.5) { const M = 28; phi = Math.round(phi / TAU * M) / M * TAU + (Math.random() - 0.5) * 0.01; }
+        else if (mode < 0.8) { const P = 16; theta = clamp(Math.round(theta / Math.PI * P) / P * Math.PI + (Math.random() - 0.5) * 0.008, 0, Math.PI); }
+        const s = Math.sin(theta);
+        nv.set(s * Math.cos(phi), Math.cos(theta), s * Math.sin(phi));
+        v.copy(nv).multiplyScalar(1.1 * (1 + (Math.random() - 0.5) * 0.012));
+      } else if (r < 0.68) {
+        g = 1;
+        nv.randomDirection();
+        v.copy(nv).multiplyScalar(0.62 * Math.pow(Math.random(), 0.65));
+      } else if (r < 0.88) {
+        const k = Math.floor(Math.random() * 3); g = 2 + k;
+        let a = Math.random() * TAU, rad = ringR[k] + (Math.random() - 0.5) * 0.02;
+        const y = (Math.random() - 0.5) * 0.02;
+        if (Math.random() < 0.22) { a = Math.round(a / TAU * 90) / 90 * TAU; rad += Math.random() * 0.07; }
+        nv.set(Math.cos(a), 0, Math.sin(a));
+        v.set(nv.x * rad, y, nv.z * rad);
+        e.set(tilt[k][0], tilt[k][1], tilt[k][2]);
+        v.applyEuler(e); nv.applyEuler(e);
+      } else {
+        g = 5;
+        nv.randomDirection();
+        v.copy(nv).multiplyScalar(1.25 + Math.pow(Math.random(), 1.8) * 1.4);
+      }
+      pos.set([v.x, v.y, v.z], i * 3);
+      nrm.set([nv.x, nv.y, nv.z], i * 3);
+      grp[i] = g;
+    }
+    return { pos, nrm, grp };
+  }
+
+  /* ================================================================
+     GENERATION DU CASQUE AUDIO (particules procedurales)
+  ================================================================ */
+  function generateHeadset(N, headY = 1.1) {
+    const pos = new Float32Array(N * 3);
+    const nrm = new Float32Array(N * 3);
+    const v = new THREE.Vector3(), n = new THREE.Vector3();
+
+    const { bandRadius, bandY, earRadius, earOffsetX, earOffsetY, micLength } = HEADSET;
+    const actualHeadY = headY;
+
+    for (let i = 0; i < N; i++) {
+      const section = Math.random();
+
+      if (section < 0.45) {
+        // ARCEAU (band over head) - arc de cercle
+        const t = (Math.random() - 0.5) * Math.PI * 0.85; // -75 to +75 degrees
+        const r = bandRadius + (Math.random() - 0.5) * 0.015;
+        const thickness = (Math.random() - 0.5) * 0.012;
+        v.set(
+          Math.sin(t) * r,
+          actualHeadY + bandY + Math.cos(t) * r * 0.3,
+          thickness
+        );
+        n.set(Math.sin(t), Math.cos(t) * 0.3, 0).normalize();
+      }
+      else if (section < 0.7) {
+        // ECOUTEUR GAUCHE
+        const theta = Math.random() * TAU;
+        const phi = Math.acos(2 * Math.random() - 1);
+        const r = earRadius * (0.8 + Math.random() * 0.4);
+        v.set(
+          -earOffsetX + r * Math.sin(phi) * Math.cos(theta) * 0.4,
+          actualHeadY + earOffsetY + r * Math.cos(phi) * 0.6,
+          r * Math.sin(phi) * Math.sin(theta) * 0.5
+        );
+        n.set(-1, 0, 0);
+      }
+      else if (section < 0.95) {
+        // ECOUTEUR DROIT
+        const theta = Math.random() * TAU;
+        const phi = Math.acos(2 * Math.random() - 1);
+        const r = earRadius * (0.8 + Math.random() * 0.4);
+        v.set(
+          earOffsetX + r * Math.sin(phi) * Math.cos(theta) * 0.4,
+          actualHeadY + earOffsetY + r * Math.cos(phi) * 0.6,
+          r * Math.sin(phi) * Math.sin(theta) * 0.5
+        );
+        n.set(1, 0, 0);
+      }
+      else {
+        // MICRO (bras qui descend vers la bouche)
+        const t = Math.random();
+        const curve = Math.sin(t * Math.PI * 0.5) * 0.03;
+        v.set(
+          -earOffsetX + 0.02 + curve,
+          actualHeadY + earOffsetY - t * micLength,
+          0.04 + t * 0.06 + (Math.random() - 0.5) * 0.008
+        );
+        n.set(0, 0, 1);
+      }
+
+      pos.set([v.x, v.y, v.z], i * 3);
+      nrm.set([n.x, n.y, n.z], i * 3);
+    }
+
+    return { pos, nrm };
+  }
+
+  /* ================================================================
+     FALLBACK PROCEDURAL (humain + casque)
+  ================================================================ */
+  function shapeFromParts(parts, N, skin) {
+    let tot = 0;
+    const cum = parts.map(p => {
+      if (p.k === 'c') {
+        const d = [p.b[0]-p.a[0], p.b[1]-p.a[1], p.b[2]-p.a[2]];
+        p.len = Math.hypot(...d);
+        p.d = d;
+        const ax = new THREE.Vector3(...d).normalize();
+        const h = Math.abs(ax.y) < 0.9 ? new THREE.Vector3(0,1,0) : new THREE.Vector3(1,0,0);
+        p.u = new THREE.Vector3().crossVectors(ax, h).normalize();
+        p.v = new THREE.Vector3().crossVectors(ax, p.u).normalize();
+      }
+      const area = p.k === 'c' ? p.len * Math.PI * (p.ra + p.rb)
+                               : 4 * Math.PI * ((p.r[0]*p.r[1] + p.r[1]*p.r[2] + p.r[0]*p.r[2]) / 3);
+      return (tot += area * p.w);
+    });
+    const out = { pos: new Float32Array(N*3), nrm: new Float32Array(N*3), col: new Float32Array(N*3), part: new Float32Array(N) };
+    const s = new THREE.Vector3(), n = new THREE.Vector3();
+    for (let i = 0; i < N; i++) {
+      const x = Math.random() * tot;
+      let j = cum.findIndex(c => c >= x); if (j < 0) j = parts.length - 1;
+      const p = parts[j];
+      let px, py, pz;
+      if (p.k === 'c') {
+        const t = Math.random(), a = Math.random() * TAU, rad = p.ra + (p.rb - p.ra) * t;
+        n.copy(p.u).multiplyScalar(Math.cos(a)).addScaledVector(p.v, Math.sin(a));
+        px = p.a[0] + p.d[0]*t + n.x*rad; py = p.a[1] + p.d[1]*t + n.y*rad; pz = p.a[2] + p.d[2]*t + n.z*rad;
+      } else {
+        s.randomDirection();
+        px = p.c[0] + s.x*p.r[0]; py = p.c[1] + s.y*p.r[1]; pz = p.c[2] + s.z*p.r[2];
+        n.set(s.x/p.r[0], s.y/p.r[1], s.z/p.r[2]).normalize();
+      }
+      out.pos.set([px, py, pz], i*3);
+      out.nrm.set([n.x, n.y, n.z], i*3);
+      out.col.set(skin, i*3);
+      out.part[i] = p.tag || 0;
+    }
+    return out;
+  }
+
+  function humanParts() {
+    const P = [];
+    const E = (c, r, w = 1, tag = 0) => P.push({ k: 'e', c, r, w, tag });
+    const C = (a, b, ra, rb, w = 1, tag = 0) => P.push({ k: 'c', a, b, ra, rb, w, tag });
+    // Tete
+    E([0,1.68,0],[0.095,0.12,0.105],2.6);
+    // Cou
+    C([0,1.58,0],[0,1.47,0],0.048,0.055);
+    // Epaules/Torse haut
+    E([0,1.33,0],[0.18,0.2,0.105],1.2);
+    C([0,1.22,0],[0,0.99,0],0.14,0.15);
+    E([0,0.95,0],[0.165,0.12,0.11]);
+    for (const s of [-1, 1]) {
+      E([s*0.2,1.46,0],[0.065,0.065,0.065]);
+      C([s*0.215,1.44,0],[s*0.27,1.16,0.01],0.052,0.042,1.1);
+      C([s*0.27,1.16,0.01],[s*0.31,0.9,0.05],0.042,0.03,1.1);
+      E([s*0.315,0.84,0.055],[0.032,0.06,0.02],1.5);
+      C([s*0.09,0.92,0],[s*0.1,0.5,0.01],0.085,0.058);
+      C([s*0.1,0.5,0.01],[s*0.1,0.1,0],0.056,0.038);
+      E([s*0.1,0.045,0.05],[0.04,0.035,0.1],1.2);
+    }
+    return P;
+  }
+
+  function robotParts() {
+    const P = [];
+    const E = (c, r, w = 1, tag = 0) => P.push({ k: 'e', c, r, w, tag });
+    const C = (a, b, ra, rb, w = 1, tag = 0) => P.push({ k: 'c', a, b, ra, rb, w, tag });
+    E([0,1.68,0],[0.1,0.125,0.11],2.4);
+    E([0,1.68,0.07],[0.085,0.028,0.05],1.6,1);
+    C([0,1.57,0],[0,1.47,0],0.035,0.04,1,1);
+    E([0,1.33,0],[0.21,0.21,0.13],1.4);
+    E([0,1.34,0.125],[0.045,0.045,0.02],2,1);
+    C([0,1.2,0],[0,1.0,0],0.09,0.1);
+    E([0,0.95,0],[0.15,0.11,0.11]);
+    for (const s of [-1, 1]) {
+      E([s*0.25,1.45,0],[0.09,0.08,0.08],1.3);
+      E([s*0.27,1.2,0.01],[0.04,0.04,0.04],1.4,1);
+      C([s*0.26,1.42,0],[s*0.27,1.2,0.01],0.045,0.038);
+      C([s*0.27,1.2,0.01],[s*0.3,0.92,0.04],0.04,0.03);
+      E([s*0.305,0.85,0.05],[0.035,0.065,0.025],1.4);
+      E([s*0.1,0.5,0.01],[0.055,0.055,0.055],1.4,1);
+      C([s*0.09,0.9,0],[s*0.1,0.5,0.01],0.07,0.052);
+      C([s*0.1,0.5,0.01],[s*0.1,0.1,0],0.05,0.036);
+      E([s*0.1,0.045,0.05],[0.045,0.035,0.105],1.2);
+    }
+    return P;
+  }
+
+  /* ================================================================
+     CHARGEMENT GLB + HEADSET
+  ================================================================ */
+  const gltfLoader = new GLTFLoader();
+  const LIN = new Float32Array(256).map((_, i) => Math.pow(i / 255, 2.2));
+
+  function meshArea(mesh) {
+    const g = mesh.geometry, p = g.attributes.position, idx = g.index;
+    const sc = Math.cbrt(Math.abs(mesh.matrixWorld.determinant()));
+    const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+    const tri = idx ? idx.count / 3 : p.count / 3;
+    let area = 0;
+    for (let i = 0; i < tri; i++) {
+      const i0 = idx ? idx.getX(i*3) : i*3, i1 = idx ? idx.getX(i*3+1) : i*3+1, i2 = idx ? idx.getX(i*3+2) : i*3+2;
+      a.fromBufferAttribute(p, i0); b.fromBufferAttribute(p, i1); c.fromBufferAttribute(p, i2);
+      area += b.sub(a).cross(c.sub(a)).length() * 0.5;
+    }
+    return area * sc * sc;
+  }
+
+  function readTexture(mat) {
+    try {
+      const img = mat && mat.map && mat.map.image;
+      if (!img) return null;
+      const w0 = img.width || img.videoWidth, h0 = img.height || img.videoHeight;
+      const k = Math.min(1, 1024 / w0), w = Math.max(1, Math.round(w0 * k)), h = Math.max(1, Math.round(h0 * k));
+      const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+      const ctx = cv.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(img, 0, 0, w, h);
+      return { data: ctx.getImageData(0, 0, w, h).data, w, h };
+    } catch (err) { console.warn('Texture illisible', err); return null; }
+  }
+
+  function bounds(pos) {
+    const mn = [Infinity, Infinity, Infinity], mx = [-Infinity, -Infinity, -Infinity];
+    for (let i = 0; i < pos.length; i += 3) for (let k = 0; k < 3; k++) {
+      const v = pos[i+k]; if (v < mn[k]) mn[k] = v; if (v > mx[k]) mx[k] = v;
+    }
+    return { min: mn, max: mx };
+  }
+
+  function finalizeShape(s, lower, targetH = BODY_H) {
+    let b = bounds(s.pos), h = b.max[1] - b.min[1];
+    const sc = targetH / h, cx = (b.min[0] + b.max[0]) / 2, cz = (b.min[2] + b.max[2]) / 2;
+    for (let i = 0; i < s.pos.length; i += 3) {
+      s.pos[i]   = (s.pos[i]   - cx) * sc;
+      s.pos[i+1] = (s.pos[i+1] - b.min[1]) * sc - targetH / 2;
+      s.pos[i+2] = (s.pos[i+2] - cz) * sc;
+    }
+    return s;
+  }
+
+  function sortShape(s, N) {
+    const keys = new Float32Array(N);
+    for (let i = 0; i < N; i++) keys[i] = s.pos[i*3+1] + (Math.random() - 0.5) * 0.5;
+    const order = new Uint32Array(N); for (let i = 0; i < N; i++) order[i] = i;
+    order.sort((a, b) => keys[a] - keys[b]);
+    for (const k of Object.keys(s)) {
+      const src = s[k], st = src.length / N, dst = new Float32Array(src.length);
+      for (let i = 0; i < N; i++) { const o = order[i]; for (let j = 0; j < st; j++) dst[i*st+j] = src[o*st+j]; }
+      s[k] = dst;
+    }
+    return s;
+  }
+
+  // Ajoute le casque aux particules humaines
+  function addHeadsetToShape(shape, N, headY) {
+    const headsetCount = Math.floor(N * HEADSET.particleRatio);
+    const headset = generateHeadset(headsetCount, headY);
+
+    // Insere le casque dans les particules du haut (pas a la fin pour le tri)
+    // On remplace des particules aleatoires dans le haut de la forme
+    const indices = [];
+    for (let i = 0; i < N; i++) {
+      if (shape.pos[i * 3 + 1] > headY - 0.3) {
+        indices.push(i);
+      }
+    }
+    // Melange et prend les premiers
+    for (let i = indices.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [indices[i], indices[j]] = [indices[j], indices[i]];
+    }
+
+    const toReplace = indices.slice(0, Math.min(headsetCount, indices.length));
+    for (let i = 0; i < toReplace.length; i++) {
+      const srcIdx = i * 3;
+      const dstIdx = toReplace[i] * 3;
+      shape.pos[dstIdx]     = headset.pos[srcIdx];
+      shape.pos[dstIdx + 1] = headset.pos[srcIdx + 1];
+      shape.pos[dstIdx + 2] = headset.pos[srcIdx + 2];
+      shape.nrm[dstIdx]     = headset.nrm[srcIdx];
+      shape.nrm[dstIdx + 1] = headset.nrm[srcIdx + 1];
+      shape.nrm[dstIdx + 2] = headset.nrm[srcIdx + 2];
+      // Couleur noire brillante pour le casque
+      shape.col[dstIdx]     = 0.08;
+      shape.col[dstIdx + 1] = 0.08;
+      shape.col[dstIdx + 2] = 0.1;
+      shape.part[toReplace[i]] = 2; // Tag special pour le casque
+    }
+
+    return shape;
+  }
+
+  async function shapeFromGLB(cfg, N) {
+    let gltf = null;
+    for (const u of cfg.urls) {
+      try { gltf = await gltfLoader.loadAsync(u); break; } catch (err) { console.warn('Echec chargement', u, err); }
+    }
+    if (!gltf) throw new Error('Aucun modele charge');
+    gltf.scene.updateMatrixWorld(true);
+
+    const items = []; let total = 0;
+    gltf.scene.traverse(o => {
+      if (!o.isMesh || !o.visible || !o.geometry.attributes.position) return;
+      const area = meshArea(o); if (!(area > 0)) return;
+      const mat = Array.isArray(o.material) ? o.material[0] : o.material;
+      items.push({
+        mesh: o,
+        sampler: new MeshSurfaceSampler(o).build(),
+        tex: cfg.texture ? readTexture(mat) : null,
+        color: (mat && mat.color) ? mat.color : new THREE.Color(0.7, 0.6, 0.5),
+        tag: /joint|eye|lens|light/i.test(o.name + ' ' + ((mat && mat.name) || '')) ? 1 : 0,
+        cum: (total += area)
+      });
+    });
+    if (!items.length) throw new Error('Modele sans mesh');
+
+    const out = { pos: new Float32Array(N*3), nrm: new Float32Array(N*3), col: new Float32Array(N*3), part: new Float32Array(N) };
+    const P = new THREE.Vector3(), Nm = new THREE.Vector3(), UV = new THREE.Vector2();
+
+    const draw = () => {
+      const r = Math.random() * total; let it = items[items.length - 1];
+      for (const c of items) if (c.cum >= r) { it = c; break; }
+      UV.set(-1, -1);
+      it.sampler.sample(P, Nm, undefined, UV);
+      P.applyMatrix4(it.mesh.matrixWorld);
+      Nm.transformDirection(it.mesh.matrixWorld);
+      return it;
+    };
+
+    const store = (i, it) => {
+      out.pos[i*3] = P.x; out.pos[i*3+1] = P.y; out.pos[i*3+2] = P.z;
+      out.nrm[i*3] = Nm.x; out.nrm[i*3+1] = Nm.y; out.nrm[i*3+2] = Nm.z;
+      let r = it.color.r, g = it.color.g, b = it.color.b;
+      if (it.tex && UV.x >= 0) {
+        let u = UV.x - Math.floor(UV.x), v = UV.y - Math.floor(UV.y);
+        if (TEXTURE_FLIP_V) v = 1 - v;
+        const px = Math.min(it.tex.w - 1, (u * it.tex.w) | 0), py = Math.min(it.tex.h - 1, (v * it.tex.h) | 0);
+        const k = (py * it.tex.w + px) * 4, d = it.tex.data;
+        r = LIN[d[k]]; g = LIN[d[k+1]]; b = LIN[d[k+2]];
+      }
+      out.col[i*3] = r; out.col[i*3+1] = g; out.col[i*3+2] = b;
+      out.part[i] = it.tag;
+    };
+
+    const nBase = Math.round(N * (1 - cfg.headFrac));
+    let minY = Infinity, maxY = -Infinity;
+    for (let i = 0; i < nBase; i++) { const it = draw(); store(i, it); if (P.y < minY) minY = P.y; if (P.y > maxY) maxY = P.y; }
+
+    const thr = minY + (maxY - minY) * 0.865;
+    let n = nBase, tries = 0;
+    while (n < N && tries < N * 80) { tries++; const it = draw(); if (P.y > thr) store(n++, it); }
+    while (n < N) { const it = draw(); store(n++, it); }
+
+    return finalizeShape(out, !cfg.isBust);
+  }
+
+  /* ================================================================
+     GEOMETRIE
+  ================================================================ */
+  const sphere = sortShape(generateSphere(COUNT), COUNT);
+  const human  = sortShape(finalizeShape(shapeFromParts(humanParts(), COUNT, [0.62, 0.36, 0.28]), false), COUNT);
+  const robot  = sortShape(finalizeShape(shapeFromParts(robotParts(), COUNT, [0.6, 0.7, 0.8]), false), COUNT);
+
+  // Ajouter casque au fallback humain
+  addHeadsetToShape(human, COUNT, 0.6);
+
+  const rand = new Float32Array(COUNT * 4);
+  for (let i = 0; i < rand.length; i++) rand[i] = Math.random();
+
+  const geometry = new THREE.BufferGeometry();
+  const A = (name, arr, size) => geometry.setAttribute(name, new THREE.BufferAttribute(arr, size));
+  A('position', sphere.pos, 3);  A('normal', sphere.nrm, 3);  A('aGroup', sphere.grp, 1);
+  A('aHuman', human.pos, 3);     A('nHuman', human.nrm, 3);   A('aCol', human.col, 3);  A('aHPart', human.part, 1);
+  A('aRobot', robot.pos, 3);     A('nRobot', robot.nrm, 3);   A('aRPart', robot.part, 1);
+  A('aRand', rand, 4);
+
+  function setAttr(name, arr) { const a = geometry.attributes[name]; a.array.set(arr); a.needsUpdate = true; }
+
+  /* ================================================================
+     SHADERS
+  ================================================================ */
+  const vertexShader = /* glsl */`
+    uniform float uTime;
+    uniform float uMorph;
+    uniform float uPixelRatio;
+    uniform float uSize;
+    uniform float uBurst;
+    uniform vec3  uPointer;
+    uniform float uPointerForce;
+
+    attribute vec3 aHuman;  attribute vec3 nHuman;
+    attribute vec3 aRobot;  attribute vec3 nRobot;
+    attribute vec3 aCol;
+    attribute vec4 aRand;
+    attribute float aGroup;
+    attribute float aHPart;
+    attribute float aRPart;
+
+    varying vec3  vColor;
+    varying float vAlpha;
+
+    vec3 mod289(vec3 x){ return x - floor(x*(1.0/289.0))*289.0; }
+    vec4 mod289(vec4 x){ return x - floor(x*(1.0/289.0))*289.0; }
+    vec4 permute(vec4 x){ return mod289(((x*34.0)+1.0)*x); }
+    vec4 taylorInvSqrt(vec4 r){ return 1.79284291400159 - 0.85373472095314*r; }
+    float snoise(vec3 v){
+      const vec2 C = vec2(1.0/6.0, 1.0/3.0);
+      const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+      vec3 i = floor(v + dot(v, C.yyy));
+      vec3 x0 = v - i + dot(i, C.xxx);
+      vec3 g = step(x0.yzx, x0.xyz);
+      vec3 l = 1.0 - g;
+      vec3 i1 = min(g.xyz, l.zxy);
+      vec3 i2 = max(g.xyz, l.zxy);
+      vec3 x1 = x0 - i1 + C.xxx;
+      vec3 x2 = x0 - i2 + C.yyy;
+      vec3 x3 = x0 - D.yyy;
+      i = mod289(i);
+      vec4 p = permute(permute(permute(i.z + vec4(0.0, i1.z, i2.z, 1.0)) + i.y + vec4(0.0, i1.y, i2.y, 1.0)) + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+      float n_ = 0.142857142857;
+      vec3 ns = n_ * D.wyz - D.xzx;
+      vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+      vec4 x_ = floor(j * ns.z);
+      vec4 y_ = floor(j - 7.0 * x_);
+      vec4 x = x_ * ns.x + ns.yyyy;
+      vec4 y = y_ * ns.x + ns.yyyy;
+      vec4 h = 1.0 - abs(x) - abs(y);
+      vec4 b0 = vec4(x.xy, y.xy);
+      vec4 b1 = vec4(x.zw, y.zw);
+      vec4 s0 = floor(b0)*2.0 + 1.0;
+      vec4 s1 = floor(b1)*2.0 + 1.0;
+      vec4 sh = -step(h, vec4(0.0));
+      vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy;
+      vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww;
+      vec3 p0 = vec3(a0.xy, h.x);
+      vec3 p1 = vec3(a0.zw, h.y);
+      vec3 p2 = vec3(a1.xy, h.z);
+      vec3 p3 = vec3(a1.zw, h.w);
+      vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2,p2), dot(p3,p3)));
+      p0 *= norm.x; p1 *= norm.y; p2 *= norm.z; p3 *= norm.w;
+      vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+      m = m*m;
+      return 42.0 * dot(m*m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
+    }
+
+    vec3 rotY(vec3 v, float a){ float c = cos(a), s = sin(a); return vec3(c*v.x + s*v.z, v.y, -s*v.x + c*v.z); }
+
+    void main(){
+      float m   = clamp(uMorph, 0.0, 2.0);
+      float seg = min(floor(m), 1.0);
+      float t   = m - seg;
+      bool first = seg < 0.5;
+
+      float rot = 0.05 * uTime;
+      if (aGroup > 1.5 && aGroup < 4.5) {
+        float dirS = (abs(aGroup - 3.0) < 0.5) ? -1.0 : 1.0;
+        rot = uTime * (0.22 + 0.09*(aGroup - 2.0)) * dirS;
+      } else if (aGroup > 4.5) rot = uTime * 0.03;
+      vec3 sP = rotY(position, rot);
+      vec3 sN = rotY(normal, rot);
+      if (aGroup > 0.5 && aGroup < 1.5) sP *= 1.0 + 0.06*sin(uTime*1.6 + aRand.x*6.0);
+
+      vec3 pA = first ? sP : aHuman;   vec3 nA = first ? sN : nHuman;
+      vec3 pB = first ? aHuman : aRobot; vec3 nB = first ? nHuman : nRobot;
+
+      float spread = 0.5;
+      float lt = clamp((t - aRand.y*spread) / (1.0 - spread), 0.0, 1.0);
+      float e  = lt*lt*lt*(lt*(lt*6.0 - 15.0) + 10.0);
+      float burst = sin(lt * 3.14159265);
+
+      vec3 base = mix(pA, pB, e);
+      vec3 dir  = normalize(base + vec3(0.0001, 0.0002, 0.0003));
+      vec3 pos  = base;
+
+      if (burst > 0.001) {
+        vec3 q = base*0.8 + vec3(0.0, uTime*0.15, aRand.x*4.0);
+        vec3 curl = vec3(snoise(q), snoise(q + vec3(31.4, 7.1, 0.0)), snoise(q + vec3(0.0, 17.3, 53.2)));
+        vec3 swirl = cross(vec3(0.0, 1.0, 0.0), base);
+        pos += dir * burst * (0.7 + aRand.x*2.2) * uBurst
+             + swirl * burst * (aRand.z - 0.3) * 1.1
+             + curl * burst * 0.9;
+      }
+
+      vec3 n = normalize(mix(nA, nB, e) + dir*burst*1.2);
+      float amp = mix(mix(0.032, 0.004, smoothstep(0.0, 1.0, m)), 0.0025, smoothstep(1.0, 2.0, m));
+      pos += n * snoise(base*1.7 + vec3(0.0, uTime*0.25, uTime*0.12)) * amp;
+
+      vec2 dp = pos.xy - uPointer.xy;
+      float push = smoothstep(0.8, 0.0, length(dp)) * uPointerForce;
+      pos += normalize(vec3(dp, 0.5)) * push * 0.3;
+
+      vec4 mv = modelViewMatrix * vec4(pos, 1.0);
+      gl_Position = projectionMatrix * mv;
+
+      vec3 wgt = first ? vec3(1.0 - e, e, 0.0) : vec3(0.0, 1.0 - e, e);
+
+      vec3 vn = normalize(normalMatrix * n);
+      float facing = vn.z;
+      float diff = max(dot(vn, normalize(vec3(-0.5, 0.6, 0.65))), 0.0);
+      float rim  = pow(1.0 - clamp(facing, 0.0, 1.0), 2.4);
+      float back = smoothstep(-0.4, 0.2, facing);
+      float rimW = dot(wgt, vec3(0.8, 0.5, 1.0));
+      float light = 0.2 + 0.9*diff + rimW*1.1*rim;
+      light *= mix(0.2, 1.0, back);
+      if (aGroup > 0.5 && aGroup < 1.5) light = mix(light, 1.2, wgt.x);
+      if (aRPart > 0.5) light = mix(light, max(light, 1.0), wgt.z);
+
+      // Couleurs
+      vec3 cS = vec3(0.04, 0.55, 0.75) * (0.7 + 0.8*aRand.z);
+      if (aGroup > 0.5 && aGroup < 1.5)      cS = mix(vec3(0.2, 0.7, 1.0), vec3(1.0), aRand.z*0.7) * 1.5;
+      else if (aGroup > 1.5 && aGroup < 4.5) cS = ((abs(aGroup - 4.0) < 0.5) ? vec3(0.6, 0.4, 1.0) : vec3(0.2, 0.85, 1.0)) * 1.5;
+      else if (aGroup > 4.5)                 cS = vec3(0.3, 0.5, 0.95) * 0.6;
+
+      vec3 skin = aCol * 1.7 + 0.04;
+      vec3 cH = mix(vec3(0.5, 0.9, 1.0) * 0.55, skin, 0.62);
+      cH *= 0.92 + 0.08*sin(pos.y*120.0 - uTime*2.0);
+
+      // Casque en noir brillant
+      if (aHPart > 1.5) {
+        cH = vec3(0.1, 0.12, 0.15) * 1.5;
+        light = max(light, 0.8);
+      }
+
+      vec3 cR = vec3(0.62, 0.78, 1.0);
+      float gridL = max(step(0.94, fract(pos.y*11.0)), step(0.95, fract((pos.x + pos.z*0.5)*13.0)));
+      cR *= 0.85 + 0.9*gridL;
+      if (aRPart > 0.5)    cR = vec3(0.1, 0.9, 1.0) * (2.2 + 0.6*sin(uTime*3.0 + aRand.x*10.0));
+      if (aRand.w > 0.985) cR = vec3(1.0, 0.5, 0.15) * 1.6;
+
+      vec3 col = (cS*wgt.x + cH*wgt.y + cR*wgt.z) * light;
+
+      col = mix(col, vec3(1.0, 0.5, 0.15) * 1.5, burst*0.6);
+      col += vec3(1.0, 0.75, 0.45) * burst*burst * 0.25;
+
+      float sweepY = mod(uTime*0.6, 5.0) - 2.5;
+      float band = exp(-pow((pos.y - sweepY)*6.0, 2.0));
+      col += vec3(0.3, 0.9, 1.0) * band * 0.8 * (wgt.y + wgt.z + 0.3*wgt.x);
+
+      vColor = col;
+      vAlpha = clamp(0.35 + 0.5*back, 0.0, 1.0) * 0.9;
+
+      float size = uSize * uPixelRatio * (0.6 + aRand.z*0.8) * dot(wgt, vec3(1.0, 0.8, 0.8));
+      size *= 1.0 + burst*0.9 + push*0.8;
+      gl_PointSize = size * (6.5 / -mv.z);
+    }
+  `;
+
+  const fragmentShader = /* glsl */`
+    varying vec3  vColor;
+    varying float vAlpha;
+    void main(){
+      float d = length(gl_PointCoord - 0.5) * 2.0;
+      if (d > 1.0) discard;
+      float a = pow(1.0 - d, 1.6);
+      gl_FragColor = vec4(vColor, a * vAlpha);
+    }
+  `;
+
+  const uniforms = {
+    uTime:  { value: 0 },
+    uMorph: { value: 0 },
+    uPixelRatio: { value: PR },
+    uSize:  { value: 2.2 },
+    uBurst: { value: 1.0 },
+    uPointer: { value: new THREE.Vector3(99, 99, 0) },
+    uPointerForce: { value: 0 }
+  };
+
+  const material = new THREE.ShaderMaterial({
+    vertexShader, fragmentShader, uniforms,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
+  });
+
+  const points = new THREE.Points(geometry, material);
+  points.frustumCulled = false;
+  const group = new THREE.Group();
+  group.add(points);
+  scene.add(group);
+
+  /* ================================================================
+     CHARGEMENT DES MODELES
+  ================================================================ */
+  const statusEl = document.getElementById('status');
+  let loaded = 0, failed = 0;
+  const updateStatus = () => {
+    if (loaded + failed < 2) return;
+    statusEl.textContent = failed ? `Fallback procedural + casque - ${COUNT.toLocaleString('fr-FR')} particules`
+                                  : `Avatar custom + casque - ${COUNT.toLocaleString('fr-FR')} particules`;
+  };
+
+  shapeFromGLB(MODELS.human, COUNT).then(s => {
+    // Pour un buste, la tete est dans le haut du modele
+    const b = bounds(s.pos);
+    const modelHeight = b.max[1] - b.min[1];
+    // Pour un buste: la tete est environ a 70% de la hauteur totale
+    const headY = b.min[1] + modelHeight * 0.7;
+    console.log('Avatar bounds:', b, 'headY:', headY);
+    addHeadsetToShape(s, COUNT, headY);
+    sortShape(s, COUNT);
+    setAttr('aHuman', s.pos); setAttr('nHuman', s.nrm); setAttr('aCol', s.col); setAttr('aHPart', s.part);
+    loaded++; updateStatus();
+  }).catch(err => { console.warn('Avatar : fallback procedural', err); failed++; updateStatus(); });
+
+  shapeFromGLB(MODELS.robot, COUNT).then(s => {
+    sortShape(s, COUNT);
+    setAttr('aRobot', s.pos); setAttr('nRobot', s.nrm); setAttr('aRPart', s.part);
+    loaded++; updateStatus();
+  }).catch(err => { console.warn('Robot : fallback procedural', err); failed++; updateStatus(); });
+
+  /* ================================================================
+     INTERACTION / RESPONSIVE
+  ================================================================ */
+  const ndc = new THREE.Vector2(0, 0), mouse = new THREE.Vector2(0, 0);
+  const raycaster = new THREE.Raycaster();
+  const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+  const hit = new THREE.Vector3();
+  let pointerActive = false;
+
+  addEventListener('pointermove', e => {
+    ndc.x = (e.clientX / innerWidth) * 2 - 1;
+    ndc.y = -(e.clientY / innerHeight) * 2 + 1;
+    pointerActive = true;
+  });
+  document.addEventListener('pointerleave', () => { pointerActive = false; });
+
+  function layout() {
+    const aspect = innerWidth / innerHeight;
+    camera.aspect = aspect;
+    camera.updateProjectionMatrix();
+    group.position.x = aspect > 1.2 ? 1.25 : 0;
+    group.position.y = aspect < 0.8 ? 0.6 : 0;
+    group.scale.setScalar(aspect < 0.8 ? 0.72 : 1);
+  }
+  layout();
+  addEventListener('resize', () => {
+    renderer.setSize(innerWidth, innerHeight);
+    composer.setSize(innerWidth, innerHeight);
+    layout();
+  });
+
+  /* ================================================================
+     SCROLL -> MORPH
+  ================================================================ */
+  const innerEls = [...document.querySelectorAll('.section .inner')];
+  const phaseEls = [...document.querySelectorAll('.phase')];
+  let sCur = 0, lastActive = -1;
+
+  const morphFromS = s => lin(0.35, 1.65, s) + lin(2.35, 3.65, s);
+
+  const clock = new THREE.Clock();
+  function frame() {
+    requestAnimationFrame(frame);
+    const dt = Math.min(clock.getDelta(), 0.05);
+    const t  = clock.elapsedTime;
+
+    const maxScroll = Math.max(1, document.documentElement.scrollHeight - innerHeight);
+    const sTarget = clamp(scrollY / maxScroll, 0, 1) * (SECTIONS - 1);
+    sCur += (sTarget - sCur) * (1 - Math.exp(-dt * 6));
+
+    uniforms.uTime.value = t;
+    uniforms.uMorph.value = morphFromS(sCur);
+
+    innerEls.forEach((el, k) => {
+      const d = sCur - k;
+      el.style.opacity = clamp(1 - Math.abs(d) * 1.5, 0, 1).toFixed(3);
+      el.style.transform = `translateY(${(-d * 24).toFixed(1)}px)`;
+    });
+    const active = clamp(Math.round(sCur), 0, SECTIONS - 1);
+    if (active !== lastActive) { phaseEls.forEach((el, i) => el.classList.toggle('active', i === active)); lastActive = active; }
+
+    mouse.x += (ndc.x - mouse.x) * (1 - Math.exp(-dt * 3));
+    mouse.y += (ndc.y - mouse.y) * (1 - Math.exp(-dt * 3));
+    group.rotation.y = mouse.x * 0.35 + Math.sin(t * 0.3) * 0.12;
+    group.rotation.x = -mouse.y * 0.15;
+
+    group.updateMatrixWorld();
+    raycaster.setFromCamera(ndc, camera);
+    if (raycaster.ray.intersectPlane(plane, hit)) { group.worldToLocal(hit); uniforms.uPointer.value.copy(hit); }
+    uniforms.uPointerForce.value += ((pointerActive ? 1 : 0) - uniforms.uPointerForce.value) * (1 - Math.exp(-dt * 5));
+
+    composer.render();
+  }
+  frame();
+  </script>
+</body>
+</html>
